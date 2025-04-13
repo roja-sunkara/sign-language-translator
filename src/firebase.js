@@ -1,15 +1,23 @@
-// src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
+// Your Firebase configuration (use your own keys from Firebase Console)
 const firebaseConfig = {
-  apiKey: "AIzaSyBDyrB1Gg5NpNzwoDj8nKUE9cahqDe8YKg",
-  authDomain: "signlanguagetranslator-46de2.firebaseapp.com",
-  projectId: "signlanguagetranslator-46de2",
-  storageBucket: "signlanguagetranslator-46de2.appspot.com",
-  messagingSenderId: "849969457619",
-  appId: "1:849969457619:web:b5b00e80483cc703b1e726",
+  apiKey: "your-api-key",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id",
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Firebase services
 export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+
