@@ -1,14 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { auth } from './firebase'; // Import firebase auth
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import * as handpose from '@tensorflow-models/handpose';
+import '@tensorflow/tfjs';
+import { auth } from './firebaseConfig';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
 
 function App() {
+  const videoRef = useRef(null);
+  const [model, setModel] = useState(null);
+  const [detectedGesture, setDetectedGesture] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [user, setUser] = useState(null);
 
-  // Authentication handler for login or signup
+  useEffect(() => {
+    const loadModel = async () => {
+      const loadedModel = await handpose.load();
+      setModel(loadedModel);
+    };
+    loadModel();
+  }, []);
+
+  useEffect(() => {
+    const startVideo = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing webcam:', error);
+      }
+    };
+    startVideo();
+  }, []);
+
+  useEffect(() => {
+    const detectGesture = async () => {
+      if (model && videoRef.current) {
+        const predictions = await model.estimateHands(videoRef.current);
+        if (predictions.length > 0) {
+          const landmarks = predictions[0].landmarks;
+
+          const thumbTip = landmarks[4];
+          const indexTip = landmarks[8];
+          const middleTip = landmarks[12];
+          const ringTip = landmarks[16];
+          const pinkyTip = landmarks[20];
+
+          const isThumbUp =
+            thumbTip[1] < indexTip[1] &&
+            thumbTip[1] < middleTip[1] &&
+            thumbTip[1] < ringTip[1] &&
+            thumbTip[1] < pinkyTip[1];
+
+          const isVictory =
+            indexTip[1] < middleTip[1] &&
+            ringTip[1] > middleTip[1] &&
+            pinkyTip[1] > middleTip[1];
+
+          const isFist =
+            indexTip[1] > landmarks[6][1] &&
+            middleTip[1] > landmarks[10][1] &&
+            ringTip[1] > landmarks[14][1] &&
+            pinkyTip[1] > landmarks[18][1];
+
+          const isOpenHand =
+            indexTip[1] < landmarks[6][1] &&
+            middleTip[1] < landmarks[10][1] &&
+            ringTip[1] < landmarks[14][1] &&
+            pinkyTip[1] < landmarks[18][1];
+
+          if (isThumbUp) setDetectedGesture('👍 Thumbs Up');
+          else if (isVictory) setDetectedGesture('✌️ Victory');
+          else if (isFist) setDetectedGesture('👊 Fist');
+          else if (isOpenHand) setDetectedGesture('🖐️ Open Hand');
+          else setDetectedGesture('');
+        } else {
+          setDetectedGesture('');
+        }
+      }
+      requestAnimationFrame(detectGesture);
+    };
+
+    if (model) detectGesture();
+  }, [model]);
+
   const handleAuth = async (e, type) => {
     e.preventDefault();
     try {
@@ -19,21 +101,19 @@ function App() {
       }
     } catch (error) {
       alert(error.message);
+      console.error(`${type} error:`, error.message);
     }
   };
 
-  // Handle logout
   const handleLogout = async () => {
     await signOut(auth);
-    setUser(null);
   };
 
-  // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser); // Set user state when logged in
+      setUser(currentUser);
     });
-    return () => unsubscribe(); // Clean up listener on unmount
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -41,10 +121,17 @@ function App() {
       <h1>Sign Language Translator</h1>
 
       {user ? (
-        <div>
-          <button onClick={handleLogout}>Logout</button>
-          <h2>Welcome, {user.email}</h2>
-        </div>
+        <>
+          <button className="logout-btn" onClick={handleLogout}>Logout</button>
+          <video
+            ref={videoRef}
+            className="video"
+            autoPlay
+            playsInline
+            style={{ width: '640px', height: '480px', borderRadius: '10px' }}
+          />
+          <p className="gesture">{detectedGesture}</p>
+        </>
       ) : (
         <div className="auth-form">
           <h2>Login / Sign Up</h2>
@@ -54,12 +141,14 @@ function App() {
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
             />
             <input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
             <div className="btn-group">
               <button onClick={(e) => handleAuth(e, 'login')}>Login</button>
@@ -73,6 +162,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
